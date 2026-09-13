@@ -1,0 +1,9 @@
+{
+  "name": "Smart Attendance",
+  "short_name": "Absensi",
+  "start_url": "public/index.php",
+  "display": "standalone",
+  "background_color": "#f4f7f6",
+  "theme_color": "#3498db",
+  "icons": []
+}
