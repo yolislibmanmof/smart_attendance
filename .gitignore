@@ -1,0 +1,35 @@
+# Credentials & sensitive files
+email+password.txt
+.env
+.env.local
+config/database.php
+
+# Uploads (tapi keep .gitkeep)
+uploads/*
+!uploads/.gitkeep
+
+# IDE & OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Cache
+.cache/
+*.cache
+
+# Dependencies (jika pakai composer nanti)
+vendor/
+composer.lock
+node_modules/
+
+# Backup files
+*.bak
+*.backup
+*~

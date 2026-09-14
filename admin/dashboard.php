@@ -11,7 +11,9 @@ $pendingLeaves  = (int)$pdo->query("SELECT COUNT(*) FROM leaves WHERE status = '
 
 // Kemarin (untuk trend)
 $yesterday = date('Y-m-d', strtotime('-1 day'));
-$yestPresent = (int)$pdo->query("SELECT COUNT(*) FROM attendances WHERE date = '$yesterday' AND clock_in_time IS NOT NULL")->fetchColumn();
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM attendances WHERE date = ? AND clock_in_time IS NOT NULL");
+$stmt->execute([$yesterday]);
+$yestPresent = (int)$stmt->fetchColumn();
 
 // Progress kehadiran hari ini
 $presenceRate = $totalEmployees > 0 ? round(($todayPresent / $totalEmployees) * 100) : 0;
