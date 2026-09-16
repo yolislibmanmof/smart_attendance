@@ -999,6 +999,9 @@ else $nxGreet = ['Selamat Malam', '🌙', 'Istirahat yang cukup!'];
             <a href="absen.php" class="<?= $currentPage == 'absen.php' ? 'active' : '' ?>">
                 <span class="ico">📍</span><span class="menu-text">Absen Sekarang</span>
             </a>
+            <a href="enroll_face.php" class="<?= $currentPage == 'enroll_face.php' ? 'active' : '' ?>">
+                <span class="ico">😺</span><span class="menu-text">Absen Wajah</span>
+            </a>
             <div class="nx-menu-label">Riwayat</div>
             <a href="riwayat.php" class="<?= $currentPage == 'riwayat.php' ? 'active' : '' ?>">
                 <span class="ico">📋</span><span class="menu-text">Riwayat Absensi</span>

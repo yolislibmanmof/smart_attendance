@@ -1,5 +1,5 @@
 <?php
-// api/absen_action.php — FINAL V2 (Rotating QR + Offline Sync + Telegram Late)
+// api/absen_action.php — FINAL V3 (Rotating QR + Offline Sync + Telegram + Face ID)
 session_start();
 require_once '../config/database.php';
 require_once '../includes/helpers.php';
@@ -83,6 +83,27 @@ if ($action === 'absen_masuk') {
         respond(false, 'Absen ditolak: di luar area, QR tidak valid/kedaluwarsa, dan tidak di Wi-Fi kantor.');
     }
 
+    // ===== V3: FACE VERIFICATION (wajib jika user sudah enroll) =====
+    $faceLive = json_decode($_POST['face_descriptor_live'] ?? '', true);
+    $faceSnap = $_POST['face_snapshot'] ?? '';
+    $faceOk   = false;
+
+    $stFace = $pdo->prepare("SELECT face_descriptor FROM users WHERE id = ?");
+    $stFace->execute([$userId]);
+    $storedDesc = $stFace->fetchColumn();
+
+    if ($storedDesc) {
+        $stored = json_decode($storedDesc, true);
+        if (!is_array($faceLive) || count($faceLive) !== 128) {
+            respond(false, '🔐 Verifikasi wajah diperlukan — akun Anda terdaftar Absen Wajah.');
+        }
+        $dist = faceDistance($stored, $faceLive);
+        if ($dist > 0.6) {
+            respond(false, '🔐 Wajah tidak cocok dengan data terdaftar (skor beda: ' . round($dist, 2) . ').');
+        }
+        $faceOk = true;
+    }
+
     $clock = getClockTime();
     $today = $clock->format('Y-m-d');
 
@@ -106,18 +127,21 @@ if ($action === 'absen_masuk') {
     if ($check['geofence']) $methods[] = 'GPS';
     if ($check['qr'])       $methods[] = 'QR';
     if ($check['wifi'])     $methods[] = 'Wi-Fi';
+    if ($faceOk)            $methods[] = 'Face ID';
     if ($offline)           $methods[] = 'Offline Sync';
     $notes = 'Verifikasi: ' . implode(', ', $methods);
 
-    $ip      = getClientIp();
-    $timeSql = $clock->format('H:i:s');
+    $ip         = getClientIp();
+    $timeSql    = $clock->format('H:i:s');
+    $snapPath   = $faceOk ? saveFaceSnapshot($userId, $faceSnap) : null;
+    $faceFlag   = $faceOk ? 1 : 0;
 
     if ($existing) {
-        $stmt = $pdo->prepare("UPDATE attendances SET clock_in_time = ?, clock_in_lat = ?, clock_in_long = ?, clock_in_ip = ?, clock_in_location_id = ?, is_qr_verified = ?, scanned_qr_token = ?, status = ?, notes = ? WHERE id = ?");
-        $stmt->execute([$timeSql, $lat, $lon, $ip, $location['id'], $check['qr'] ? 1 : 0, $qrToken ?: null, $status, $notes, $existing['id']]);
+        $stmt = $pdo->prepare("UPDATE attendances SET clock_in_time = ?, clock_in_lat = ?, clock_in_long = ?, clock_in_ip = ?, clock_in_location_id = ?, is_qr_verified = ?, scanned_qr_token = ?, status = ?, notes = ?, is_face_verified = ?, face_snapshot = ? WHERE id = ?");
+        $stmt->execute([$timeSql, $lat, $lon, $ip, $location['id'], $check['qr'] ? 1 : 0, $qrToken ?: null, $status, $notes, $faceFlag, $snapPath, $existing['id']]);
     } else {
-        $stmt = $pdo->prepare("INSERT INTO attendances (user_id, date, clock_in_time, clock_in_lat, clock_in_long, clock_in_ip, clock_in_location_id, is_qr_verified, scanned_qr_token, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$userId, $today, $timeSql, $lat, $lon, $ip, $location['id'], $check['qr'] ? 1 : 0, $qrToken ?: null, $status, $notes]);
+        $stmt = $pdo->prepare("INSERT INTO attendances (user_id, date, clock_in_time, clock_in_lat, clock_in_long, clock_in_ip, clock_in_location_id, is_qr_verified, scanned_qr_token, status, notes, is_face_verified, face_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$userId, $today, $timeSql, $lat, $lon, $ip, $location['id'], $check['qr'] ? 1 : 0, $qrToken ?: null, $status, $notes, $faceFlag, $snapPath]);
     }
 
     // [V2] Notifikasi Telegram jika terlambat

@@ -14,6 +14,11 @@ $todayAttendance = $stmt->fetch();
 $stmt = $pdo->prepare("SELECT * FROM locations WHERE is_active = TRUE LIMIT 1");
 $stmt->execute();
 $location = $stmt->fetch();
+
+// [V3] Cek apakah user sudah enroll wajah
+$stFace = $pdo->prepare("SELECT face_descriptor IS NOT NULL AS enrolled FROM users WHERE id = ?");
+$stFace->execute([$userId]);
+$faceEnrolled = (bool)$stFace->fetchColumn();
 ?>
 
 <div class="absen-container">
@@ -48,11 +53,32 @@ $location = $stmt->fetch();
                 <div id="qr-reader" style="width: 100%"></div>
             </div>
 
+            <!-- [V3] FACE VERIFICATION PANEL -->
+            <?php if ($faceEnrolled): ?>
+            <div class="face-panel">
+                <p><strong>🔐 Verifikasi Wajah (Liveness):</strong></p>
+                <div class="face-wrap">
+                    <video id="face-video" data-mode="verify" autoplay muted playsinline></video>
+                    <div class="face-oval"></div>
+                </div>
+                <div id="face-status" class="face-status">Menyiapkan...</div>
+                <span id="face-verified-badge" class="badge success" style="display:none; margin-top:8px;">✅ Wajah Terverifikasi</span>
+            </div>
+            <?php else: ?>
+            <div class="face-panel muted">
+                <p>😺 <strong>Absen Wajah</strong> belum aktif di akun Anda.</p>
+                <a href="enroll_face.php" class="face-enroll-link">Aktifkan sekarang →</a>
+            </div>
+            <?php endif; ?>
+
             <form id="form-absen-masuk" style="display: none;">
                 <input type="hidden" name="latitude" id="latitude">
                 <input type="hidden" name="longitude" id="longitude">
                 <input type="hidden" name="wifi_bssid" id="wifi_bssid">
                 <input type="hidden" name="qr_token" id="qr_token">
+                <!-- [V3] Face inputs -->
+                <input type="hidden" name="face_descriptor_live" value="">
+                <input type="hidden" name="face_snapshot" value="">
                 
                 <div class="form-info">
                     <p><strong>Lokasi:</strong> <span id="lokasi-info">-</span></p>
@@ -130,5 +156,7 @@ $location = $stmt->fetch();
 
 <!-- Library QR Code Scanner -->
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<!-- [V3] Library Face Recognition -->
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 
 <?php require_once '../includes/public_footer.php'; ?>

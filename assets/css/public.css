@@ -272,3 +272,14 @@ body {
 .mood-options { display: flex; justify-content: center; gap: 10px; margin: 10px 0; }
 .mood-btn { font-size: 26px; background: #f4f7f6; border: 2px solid transparent; border-radius: 12px; padding: 8px 12px; cursor: pointer; transition: all .15s; }
 .mood-btn:hover { transform: scale(1.15); border-color: #3498db; background: #eaf4fd; }
+
+/* ===== V3: FACE RECOGNITION ===== */
+.face-panel { margin: 18px 0; padding: 16px; background: #f8f9fa; border-radius: 12px; text-align: center; }
+.face-panel.muted { color: #7f8c8d; }
+.face-wrap { position: relative; width: 260px; margin: 12px auto; border-radius: 14px; overflow: hidden; background: #000; }
+.face-wrap video { width: 100%; display: block; transform: scaleX(-1); }
+.face-oval { position: absolute; inset: 8% 18%; border: 3px dashed rgba(255,255,255,.75); border-radius: 50%; pointer-events: none; }
+.face-status { font-size: 13px; color: #5d6d7e; min-height: 20px; margin-top: 8px; font-weight: 600; }
+.face-status.ok { color: #27ae60; }
+.face-status.err { color: #c0392b; }
+.face-enroll-link { color: #3498db; font-weight: 700; text-decoration: none; }
