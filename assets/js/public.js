@@ -147,7 +147,8 @@ function initQRScanner() {
     };
 
     const onScanError = (error) => {
-        console.warn('QR Code scan error:', error);
+        // SENYAP: error ini muncul tiap frame saat tidak ada QR di depan kamera.
+        // Perilaku normal html5-qrcode, bukan bug aplikasi.
     };
 
     qrCodeScanner = new Html5Qrcode("qr-reader");
@@ -425,7 +426,7 @@ async function initFaceVerify() {
     if (!live.blink) { faceStatus('🚫 Tidak ada kedipan terdeteksi — diduga FOTO! Absen wajah gagal.', 'err'); stopFaceCamera(video); return; }
 
     faceStatus('✅ Kedipan OK! Mencocokkan identitas wajah...', 'ok');
-    const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceDescriptor();
+const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor();
     if (!det) { faceStatus('❌ Wajah tidak terdeteksi saat pencocokan.', 'err'); return; }
 
     document.querySelectorAll('input[name="face_descriptor_live"]').forEach(i => i.value = JSON.stringify(Array.from(det.descriptor)));
