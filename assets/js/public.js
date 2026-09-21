@@ -1,4 +1,4 @@
-// assets/js/public.js - VERSI TERBARU (Tahan GPS Timeout)
+// assets/js/public.js - FINAL V3 (bersih, tanpa duplikasi)
 
 let userLocation = null;
 let qrCodeScanner = null;
@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Deteksi lokasi 2 tahap: akurasi tinggi -> fallback akurasi rendah
 function getLocation() {
     const statusDiv = document.getElementById('location-status');
 
@@ -24,12 +23,10 @@ function getLocation() {
 
     statusDiv.innerHTML = '<p>🔄 Mendeteksi lokasi Anda...</p>';
 
-    // Percobaan 1: akurasi tinggi (GPS)
     navigator.geolocation.getCurrentPosition(
         successCallback,
         function (err1) {
             console.warn('Akurasi tinggi gagal, coba akurasi rendah:', err1.message);
-            // Percobaan 2: akurasi rendah (posisi via jaringan/Wi-Fi) - lebih cepat di desktop
             navigator.geolocation.getCurrentPosition(
                 successCallback,
                 finalErrorCallback,
@@ -45,7 +42,7 @@ function successCallback(position) {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         accuracy: position.coords.accuracy,
-        mocked: (position.mocked === true) // Anti-GPS Spoofing
+        mocked: (position.mocked === true)
     };
 
     document.getElementById('latitude').value = userLocation.latitude;
@@ -75,7 +72,6 @@ function successCallback(position) {
     checkGeofence();
 }
 
-// GPS gagal total: tampilkan peringatan, TAPI form absen tetap dibuka
 function finalErrorCallback(error) {
     const statusDiv = document.getElementById('location-status');
     let message = '❌ ';
@@ -168,7 +164,6 @@ function initQRScanner() {
     });
 }
 
-// ===== Submit Absen Masuk =====
 const formAbsenMasuk = document.getElementById('form-absen-masuk');
 if (formAbsenMasuk) {
     formAbsenMasuk.addEventListener('submit', async function(e) {
@@ -196,7 +191,6 @@ if (formAbsenMasuk) {
     });
 }
 
-// ===== Submit Absen Pulang =====
 const formAbsenPulang = document.getElementById('form-absen-pulang');
 if (formAbsenPulang) {
     formAbsenPulang.addEventListener('submit', async function(e) {
@@ -243,7 +237,6 @@ function confirmLogout() {
 (function () {
     const originalFetch = window.fetch;
 
-    // Bungkus fetch: jika offline / gagal jaringan saat absen -> antre di localStorage
     window.fetch = async function (input, init) {
         const url = typeof input === 'string' ? input : input.url;
         const isAbsenPost = init && init.method === 'POST' && url.includes('absen_action.php');
@@ -268,7 +261,7 @@ function confirmLogout() {
         if (!formData || typeof formData.forEach !== 'function') return;
         const data = {};
         formData.forEach((v, k) => data[k] = v);
-        data.client_time = new Date().toISOString(); // waktu ASLI saat klik
+        data.client_time = new Date().toISOString();
         data.offline = '1';
         const q = JSON.parse(localStorage.getItem('absen_queue') || '[]');
         q.push(data);
@@ -315,158 +308,7 @@ document.querySelectorAll('.mood-btn').forEach(function (btn) {
     });
 });
 
-// ===== V3: FACE RECOGNITION + LIVENESS DETECTION =====
-const FACE_MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
-let faceModelsLoaded = false;
-
-async function loadFaceModels() {
-    if (faceModelsLoaded) return true;
-    if (typeof faceapi === 'undefined') return false;
-    await faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL);
-    await faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODEL_URL);
-    await faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_URL);
-    faceModelsLoaded = true;
-    return true;
-}
-
-function startFaceCamera(videoEl) {
-    return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 480, height: 360 } })
-        .then(stream => {
-            videoEl.srcObject = stream;
-            return new Promise(res => videoEl.onloadedmetadata = () => res(stream));
-        });
-}
-
-function stopFaceCamera(videoEl) {
-    if (videoEl && videoEl.srcObject) videoEl.srcObject.getTracks().forEach(t => t.stop());
-}
-
-function captureSnapshot(video) {
-    const c = document.createElement('canvas');
-    c.width = 320;
-    c.height = Math.round(video.videoHeight * (320 / video.videoWidth)) || 240;
-    c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
-    return c.toDataURL('image/jpeg', 0.7);
-}
-
-function eyeRatio(pts, idx) {
-    const d = (a, b) => Math.hypot(pts[a].x - pts[b].x, pts[a].y - pts[b].y);
-    const [i1, i2, i3, i4, i5, i6] = idx;
-    return (d(i2, i6) + d(i3, i5)) / (2 * d(i1, i4));
-}
-
-function faceStatus(text, cls) {
-    const el = document.getElementById('face-status');
-    if (el) { el.textContent = text; el.className = 'face-status ' + (cls || ''); }
-}
-
-// LIVENESS: deteksi KEDIP (eye aspect ratio) + micro-motion (anti foto statis)
-async function runLiveness(videoEl) {
-    const c = document.createElement('canvas'); c.width = 48; c.height = 36;
-    const ctx = c.getContext('2d', { willReadFrequently: true });
-    let prev = null, maxEar = 0, minEar = 9, faceFrames = 0;
-    const motion = [];
-    const t0 = Date.now();
-
-    while (Date.now() - t0 < 8000) {
-        const det = await faceapi.detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 })).withFaceLandmarks();
-        if (det) {
-            faceFrames++;
-            const pts = det.landmarks.positions;
-            const ear = (eyeRatio(pts, [36,37,38,39,40,41]) + eyeRatio(pts, [42,43,44,45,46,47])) / 2;
-            maxEar = Math.max(maxEar, ear);
-            minEar = Math.min(minEar, ear);
-
-            ctx.drawImage(videoEl, 0, 0, 48, 36);
-            const data = ctx.getImageData(0, 0, 48, 36).data;
-            if (prev) {
-                let diff = 0;
-                for (let i = 0; i < data.length; i += 4) diff += Math.abs(data[i] - prev[i]);
-                motion.push(diff / (data.length / 4));
-            }
-            prev = Array.from(data);
-            faceStatus('👁️ Kedipkan mata Anda sekarang...');
-        }
-        await new Promise(r => setTimeout(r, 90));
-    }
-
-    const blink = faceFrames > 5 && maxEar > 0 && minEar < maxEar * 0.72;
-    const avgMotion = motion.length ? motion.reduce((a, b) => a + b, 0) / motion.length : 0;
-    return { blink, avgMotion, ok: blink && avgMotion > 0.3, faceFrames };
-}
-
-// MODE: ENROLL (daftar wajah)
-async function initFaceEnroll() {
-    const video = document.getElementById('face-video');
-    faceStatus('Memuat model AI wajah (±5MB, sekali saja)...');
-    if (!await loadFaceModels()) { faceStatus('❌ Gagal memuat model AI. Periksa koneksi internet.', 'err'); return; }
-    if (!await startFaceCamera(video).catch(() => null)) { faceStatus('❌ Kamera tidak dapat diakses.', 'err'); return; }
-    faceStatus('Posisikan wajah di dalam bingkai oval...');
-
-    let det = null;
-    for (let i = 0; i < 50 && !det; i++) {
-        det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor();
-        if (!det) await new Promise(r => setTimeout(r, 200));
-    }
-    if (!det) { faceStatus('❌ Wajah tidak terdeteksi. Perbaiki pencahayaan.', 'err'); return; }
-
-    faceStatus('🔒 Wajah terkunci! Menyimpan descriptor...', 'ok');
-    const fd = new FormData();
-    fd.append('descriptor', JSON.stringify(Array.from(det.descriptor)));
-    fd.append('snapshot', captureSnapshot(video));
-
-    const res = await fetch('../api/face_action.php?action=enroll', { method: 'POST', body: fd });
-    const r = await res.json();
-    faceStatus(r.success ? '✅ ' + r.message : '❌ ' + r.message, r.success ? 'ok' : 'err');
-    stopFaceCamera(video);
-    if (r.success) setTimeout(() => location.reload(), 1600);
-}
-
-// MODE: VERIFY (verifikasi saat absen)
-async function initFaceVerify() {
-    const video = document.getElementById('face-video');
-    faceStatus('Memuat model AI wajah...');
-    if (!await loadFaceModels()) { faceStatus('❌ Model AI gagal dimuat (butuh internet).', 'err'); return; }
-    if (!await startFaceCamera(video).catch(() => null)) { faceStatus('❌ Kamera ditolak.', 'err'); return; }
-    faceStatus('Posisikan wajah, lalu KEDIPKAN mata untuk uji liveness...');
-
-    const live = await runLiveness(video);
-    if (live.faceFrames < 5) { faceStatus('❌ Wajah tidak konsisten terdeteksi.', 'err'); stopFaceCamera(video); return; }
-    if (!live.blink) { faceStatus('🚫 Tidak ada kedipan terdeteksi — diduga FOTO! Absen wajah gagal.', 'err'); stopFaceCamera(video); return; }
-
-    faceStatus('✅ Kedipan OK! Mencocokkan identitas wajah...', 'ok');
-    const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceDescriptor();
-    if (!det) { faceStatus('❌ Wajah tidak terdeteksi saat pencocokan.', 'err'); return; }
-
-    document.querySelectorAll('input[name="face_descriptor_live"]').forEach(i => i.value = JSON.stringify(Array.from(det.descriptor)));
-    document.querySelectorAll('input[name="face_snapshot"]').forEach(i => i.value = captureSnapshot(video));
-
-    const badge = document.getElementById('face-verified-badge');
-    if (badge) badge.style.display = 'inline-flex';
-    faceStatus('✅ Face ID terverifikasi! Silakan konfirmasi absen.', 'ok');
-    stopFaceCamera(video);
-}
-
-// Router otomatis + tombol hapus data wajah
-document.addEventListener('DOMContentLoaded', function () {
-    const video = document.getElementById('face-video');
-    if (video) {
-        if (video.dataset.mode === 'enroll') initFaceEnroll();
-        else initFaceVerify();
-    }
-    const delBtn = document.getElementById('btn-delete-face');
-    if (delBtn) {
-        delBtn.addEventListener('click', async function () {
-            if (!confirm('Hapus data wajah Anda? Absen wajah akan nonaktif.')) return;
-            const res = await fetch('../api/face_action.php?action=delete', { method: 'POST', body: new FormData() });
-            const r = await res.json();
-            alert(r.message);
-            location.reload();
-        });
-    }
-});
-
-// ===== V3: FACE RECOGNITION + LIVENESS DETECTION =====
+// ===== V3: FACE RECOGNITION + LIVENESS DETECTION (HANYA 1X) =====
 const FACE_MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
 let faceModelsLoaded = false;
 
@@ -595,20 +437,28 @@ async function initFaceVerify() {
     stopFaceCamera(video);
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-    const video = document.getElementById('face-video');
-    if (video) {
-        if (video.dataset.mode === 'enroll') initFaceEnroll();
-        else initFaceVerify();
+// Auto-start face init (handle case where public.js loads after DOM ready)
+(function() {
+    function startFace() {
+        const video = document.getElementById('face-video');
+        if (video) {
+            if (video.dataset.mode === 'enroll') initFaceEnroll();
+            else initFaceVerify();
+        }
+        const delBtn = document.getElementById('btn-delete-face');
+        if (delBtn) {
+            delBtn.addEventListener('click', async function () {
+                if (!confirm('Hapus data wajah Anda? Absen wajah akan nonaktif.')) return;
+                const res = await fetch('../api/face_action.php?action=delete', { method: 'POST', body: new FormData() });
+                const r = await res.json();
+                alert(r.message);
+                location.reload();
+            });
+        }
     }
-    const delBtn = document.getElementById('btn-delete-face');
-    if (delBtn) {
-        delBtn.addEventListener('click', async function () {
-            if (!confirm('Hapus data wajah Anda? Absen wajah akan nonaktif.')) return;
-            const res = await fetch('../api/face_action.php?action=delete', { method: 'POST', body: new FormData() });
-            const r = await res.json();
-            alert(r.message);
-            location.reload();
-        });
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startFace);
+    } else {
+        startFace(); // DOM sudah ready, jalan langsung!
     }
-});
+})();
