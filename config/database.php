@@ -1,12 +1,15 @@
 <?php
 // config/database.php
-$host = 'localhost';
-$db   = 'smart_attendance_db';
-$user = 'root'; // Sesuaikan dengan username database kamu (default XAMPP: root)
-$pass = '';     // Sesuaikan dengan password database kamu (default XAMPP: kosong)
+// Jangan simpan username/password langsung di repo.
+// Gunakan environment variable, atau file .env yang tidak ikut commit.
+
+$dbHost = getenv('DB_HOST') ?: '127.0.0.1';
+$dbName = getenv('DB_NAME') ?: 'smart_attendance_db';
+$dbUser = getenv('DB_USER') ?: 'smart_attendance_user';
+$dbPass = getenv('DB_PASS') ?: 'ubah_password_anda';
 $charset = 'utf8mb4';
 
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$dsn = "mysql:host={$dbHost};dbname={$dbName};charset={$charset}";
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -14,9 +17,10 @@ $options = [
 ];
 
 try {
-    $pdo = new PDO($dsn, $user, $pass, $options);
-} catch (\PDOException $e) {
-    // Jangan tampilkan error detail di production, tapi untuk development ini membantu
-    die("Koneksi Database Gagal: " . $e->getMessage());
+    $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
+} catch (PDOException $e) {
+    // Jangan tampilkan detail database di production
+    error_log('DB connection failed: ' . $e->getMessage());
+    http_response_code(500);
+    exit('Server sedang mengalami gangguan. Silakan coba lagi nanti.');
 }
-?>
